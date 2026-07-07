@@ -1,8 +1,8 @@
 'use client'
 
-import { useSearchParams } from 'next/navigation'
-import { Suspense } from 'react'
-import { onboardAction } from './actions'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { Suspense, useCallback, useRef } from 'react'
+import { getOAuthState, onboardAction } from './actions'
 import { useFormState, useFormStatus } from 'react-dom'
 
 function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
@@ -46,11 +46,31 @@ function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
 }
 
 function Step1Connect() {
-  const connectUrl =
-    `https://connect.stripe.com/oauth/authorize` +
-    `?response_type=code` +
-    `&client_id=${encodeURIComponent(process.env.NEXT_PUBLIC_STRIPE_CONNECT_CLIENT_ID || '')}` +
-    `&scope=read_write`
+  const router = useRouter()
+  const connecting = useRef(false)
+
+  const handleConnect = useCallback(async () => {
+    if (connecting.current) return
+    connecting.current = true
+
+    try {
+      // Generate CSRF state and store in cookie (server-side).
+      const state = await getOAuthState()
+
+      const redirectUri = `${window.location.origin}/api/stripe/oauth/callback`
+      const connectUrl =
+        `https://connect.stripe.com/oauth/authorize` +
+        `?response_type=code` +
+        `&client_id=${encodeURIComponent(process.env.NEXT_PUBLIC_STRIPE_CONNECT_CLIENT_ID || '')}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+        `&scope=read_write` +
+        `&state=${encodeURIComponent(state)}`
+
+      window.location.href = connectUrl
+    } catch {
+      connecting.current = false
+    }
+  }, [router])
 
   return (
     <div className="text-center space-y-6">
@@ -61,12 +81,12 @@ function Step1Connect() {
         Click below to connect — funds flow directly to your account. We never
         touch your money.
       </p>
-      <a
-        href={connectUrl}
+      <button
+        onClick={handleConnect}
         className="inline-block w-full rounded-lg bg-indigo-600 px-6 py-3 text-white font-semibold hover:bg-indigo-700 transition-colors text-center"
       >
         Connect with Stripe
-      </a>
+      </button>
       <p className="text-xs text-slate-400">
         You&apos;ll be redirected to Stripe to authorize access. Standard Stripe
         account required.

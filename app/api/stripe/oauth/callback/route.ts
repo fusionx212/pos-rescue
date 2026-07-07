@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { stripe } from '@/lib/stripe'
 import { createMerchant } from '@/lib/merchant'
 
@@ -6,6 +7,21 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
+
+  // CSRF: verify the state param matches the cookie we set in step 1.
+  const state = searchParams.get('state')
+  const cookieStore = await cookies()
+  const expectedState = cookieStore.get('stripe_oauth_state')?.value
+
+  if (!state || !expectedState || state !== expectedState) {
+    // Clear the stale cookie.
+    cookieStore.delete('stripe_oauth_state')
+    const redirectUrl = new URL('/onboard', request.url)
+    redirectUrl.searchParams.set('error', 'csrf_mismatch')
+    return NextResponse.redirect(redirectUrl)
+  }
+  // Consume the state cookie so it cannot be replayed.
+  cookieStore.delete('stripe_oauth_state')
 
   // Stripe Connect OAuth redirects back with a `code` (authorization_code).
   const code = searchParams.get('code')
@@ -25,9 +41,6 @@ export async function GET(request: NextRequest) {
 
   try {
     // Exchange the authorization code for the merchant's Stripe account ID.
-    // StripeNode's oauth.token returns { stripe_user_id, ... } at runtime.
-    // The upstream type omits some fields (email), so we use rawRequest to avoid
-    // the type mismatch.
     const tokenResponse = await stripe().oauth.token({
       grant_type: 'authorization_code',
       code,
@@ -43,7 +56,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch the connected account to get their email.
     const account = await stripe().accounts.retrieve(stripeAccountId)
-    const email = account.email || account.id + '@stripe-connect.test'
+    const email = account.email || stripeAccountId + '@stripe-connect.test'
 
     // Create a merchant record in Supabase.
     const merchant = await createMerchant(email, stripeAccountId)
