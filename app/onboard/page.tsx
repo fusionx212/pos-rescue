@@ -1,7 +1,7 @@
 'use client'
 
-import { useSearchParams, useRouter } from 'next/navigation'
-import { Suspense, useCallback, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { useCallback, useRef, Suspense } from 'react'
 import { getOAuthState, onboardAction } from './actions'
 import { useFormState, useFormStatus } from 'react-dom'
 
@@ -46,7 +46,6 @@ function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
 }
 
 function Step1Connect() {
-  const router = useRouter()
   const connecting = useRef(false)
 
   const handleConnect = useCallback(async () => {
@@ -70,7 +69,7 @@ function Step1Connect() {
     } catch {
       connecting.current = false
     }
-  }, [router])
+  }, [])
 
   return (
     <div className="text-center space-y-6">
