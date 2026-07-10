@@ -38,12 +38,31 @@ export async function createMerchant(
   email: string,
   stripeAccountId: string,
 ): Promise<Merchant | null> {
+  // UPSERT: check if a merchant with this Stripe account already exists.
+  // This handles reconnection — a merchant redoing OAuth should update
+  // their existing row, not create a duplicate.
+  const existing = await getMerchantByStripeAccount(stripeAccountId)
+  if (existing) {
+    const { data, error } = await supabaseAdmin()
+      .from('merchants')
+      .update({
+        email,
+        armed_until: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+      })
+      .eq('id', existing.id)
+      .select()
+      .single()
+
+    if (error) throw new Error(`Failed to update merchant: ${error.message}`)
+    return data as Merchant | null
+  }
+
   const { data, error } = await supabaseAdmin()
     .from('merchants')
     .insert({
       email,
       stripe_account_id: stripeAccountId,
-      armed_until: new Date(Date.now() + 7 * 86_400_000).toISOString(), // 7-day free trial
+      armed_until: new Date(Date.now() + 7 * 86_400_000).toISOString(),
     })
     .select()
     .single()
