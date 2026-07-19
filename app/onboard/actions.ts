@@ -43,5 +43,7 @@ export async function onboardAction(_prev: unknown, formData: FormData) {
     return { error: e instanceof Error ? e.message : 'Failed to save' }
   }
 
-  redirect(`/onboard?id=${merchantId}&step=3`)
+  redirect(
+    `/onboard?id=${merchantId}&step=3&name=${encodeURIComponent(businessName.trim())}`,
+  )
 }

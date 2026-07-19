@@ -11,25 +11,34 @@ export default function CheckoutQRPage() {
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [merchantName, setMerchantName] = useState('')
-  const [countdown, setCountdown] = useState(300) // 5 minutes
+  const [expiresAt, setExpiresAt] = useState<number | null>(null) // epoch seconds
+  const [countdown, setCountdown] = useState<number | null>(null)
 
   const sessionId = params.sessionId as string
   const amountParam = searchParams.get('amount') || '0'
   const note = searchParams.get('note') || ''
 
-  // Load merchant name from localStorage and fetch session URL
+  // Load merchant identity from localStorage and fetch session URL.
+  // The session lives on the merchant's connected account, so the API
+  // needs the merchant id to retrieve it.
   useEffect(() => {
     const name = localStorage.getItem('pos_rescue_merchant_name') || 'Your Business'
     setMerchantName(name)
 
-    // Retrieve the Checkout Session URL from the API
-    fetch(`/api/checkout/${sessionId}`)
+    const merchantId = localStorage.getItem('pos_rescue_merchant_id')
+    if (!merchantId) {
+      setError('This device is not armed — complete onboarding first')
+      return
+    }
+
+    fetch(`/api/checkout/${sessionId}?m=${encodeURIComponent(merchantId)}`)
       .then(r => r.json())
       .then(data => {
         if (data.url) {
           setQrUrl(data.url)
+          if (typeof data.expires_at === 'number') setExpiresAt(data.expires_at)
         } else {
-          setError('Could not load checkout session')
+          setError(data.error || 'Could not load checkout session')
         }
       })
       .catch(() => setError('Failed to load checkout'))
@@ -49,20 +58,15 @@ export default function CheckoutQRPage() {
     })
   }, [qrUrl])
 
-  // Countdown timer for session expiry
+  // Countdown to the session's real Stripe expiry
   useEffect(() => {
-    if (countdown <= 0) return
-    const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
+    if (expiresAt === null) return
+    const tick = () =>
+      setCountdown(Math.max(0, expiresAt - Math.floor(Date.now() / 1000)))
+    tick()
+    const timer = setInterval(tick, 1000)
     return () => clearInterval(timer)
-  }, [countdown])
+  }, [expiresAt])
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60)
@@ -115,6 +119,13 @@ export default function CheckoutQRPage() {
             <div className="w-[280px] h-[280px] flex items-center justify-center text-red-400 text-sm">
               {error}
             </div>
+          ) : countdown === 0 ? (
+            <div className="w-[280px] h-[280px] flex flex-col items-center justify-center gap-2 text-amber-400 text-sm px-6 text-center">
+              <span>This code has expired.</span>
+              <span className="text-gray-400">
+                Go back and generate a fresh one.
+              </span>
+            </div>
           ) : !qrUrl ? (
             <div className="w-[280px] h-[280px] flex items-center justify-center">
               <svg className="animate-spin h-8 w-8 text-amber-500" viewBox="0 0 24 24">
@@ -135,7 +146,9 @@ export default function CheckoutQRPage() {
         {/* Session ID and expiry */}
         <div className="text-xs text-gray-500 space-y-1">
           <p>Session: {sessionId.slice(0, 12)}…{sessionId.slice(-4)}</p>
-          <p>Expires in {formatTime(countdown)}</p>
+          {countdown !== null && countdown > 0 && (
+            <p>Expires in {formatTime(countdown)}</p>
+          )}
         </div>
 
         {/* Back button */}

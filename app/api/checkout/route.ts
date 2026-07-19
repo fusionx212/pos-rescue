@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { getMerchant } from '@/lib/merchant'
 
@@ -22,6 +23,14 @@ export async function POST(request: NextRequest) {
     if (typeof amount !== 'number' || !Number.isInteger(amount) || amount < 50) {
       return NextResponse.json(
         { error: 'Amount must be an integer >= 50 (minimum £0.50 in pence)' },
+        { status: 400 },
+      )
+    }
+
+    // Same ceiling the till keypad enforces — £9,999.99
+    if (amount > 999999) {
+      return NextResponse.json(
+        { error: 'Amount exceeds the £9,999.99 maximum' },
         { status: 400 },
       )
     }
@@ -85,9 +94,10 @@ export async function POST(request: NextRequest) {
           message: 'Emergency payment — amount is fixed by the merchant.',
         },
       },
-      consent_collection: {
-        terms_of_service: 'required',
-      },
+      // Stripe's minimum session lifetime; the QR screen counts down to this
+      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+      success_url: `${request.nextUrl.origin}/pay/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${request.nextUrl.origin}/pay/cancelled`,
     }
 
     // Application fee: 1.5%, skipped for 'armed' plan merchants
@@ -114,5 +124,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
-
-import type Stripe from 'stripe'

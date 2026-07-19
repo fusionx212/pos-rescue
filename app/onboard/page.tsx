@@ -1,7 +1,7 @@
 'use client'
 
 import { useSearchParams } from 'next/navigation'
-import { useCallback, useRef, Suspense } from 'react'
+import { useCallback, useEffect, useRef, Suspense } from 'react'
 import { getOAuthState, onboardAction } from './actions'
 import { useFormState, useFormStatus } from 'react-dom'
 
@@ -190,7 +190,21 @@ function Step2Details({ merchantId }: { merchantId: string }) {
   )
 }
 
-function Step3Armed() {
+function Step3Armed({
+  merchantId,
+  merchantName,
+}: {
+  merchantId: string
+  merchantName: string
+}) {
+  // The till identifies the merchant from localStorage on this device —
+  // this write is what arms it.
+  useEffect(() => {
+    if (merchantId) localStorage.setItem('pos_rescue_merchant_id', merchantId)
+    if (merchantName)
+      localStorage.setItem('pos_rescue_merchant_name', merchantName)
+  }, [merchantId, merchantName])
+
   return (
     <div className="text-center space-y-6">
       <div className="text-6xl">✅</div>
@@ -204,6 +218,16 @@ function Step3Armed() {
         <strong>Your Stripe account is connected</strong> and funds will flow
         directly to your bank account.
       </div>
+      <a
+        href="/till"
+        className="inline-block w-full rounded-lg bg-amber-500 hover:bg-amber-600 px-6 py-3 text-black font-bold transition-colors"
+      >
+        Open your till →
+      </a>
+      <p className="text-xs text-slate-400">
+        Tip: add this site to your phone&apos;s home screen now, so the till is
+        one tap away in an emergency.
+      </p>
     </div>
   )
 }
@@ -212,6 +236,7 @@ function OnboardContent() {
   const searchParams = useSearchParams()
   const step = parseInt(searchParams.get('step') || '1') as 1 | 2 | 3
   const merchantId = searchParams.get('id') || ''
+  const merchantName = searchParams.get('name') || ''
   const error = searchParams.get('error')
 
   return (
@@ -247,8 +272,9 @@ function OnboardContent() {
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">
           {step === 1 && <Step1Connect />}
           {step === 2 && <Step2Details merchantId={merchantId} />}
-          {step === 3 && <Step3Armed />}
-          {step > 3 && <Step3Armed />}
+          {step >= 3 && (
+            <Step3Armed merchantId={merchantId} merchantName={merchantName} />
+          )}
         </div>
       </div>
     </main>
