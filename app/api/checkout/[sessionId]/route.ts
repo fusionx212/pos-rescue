@@ -59,6 +59,7 @@ export async function GET(
       url: session.url,
       amount_total: session.amount_total,
       status: session.status,
+      payment_status: session.payment_status,
       currency: session.currency,
       expires_at: session.expires_at,
     })

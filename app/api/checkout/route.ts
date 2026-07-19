@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
       },
       // Stripe's minimum session lifetime; the QR screen counts down to this
       expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
-      success_url: `${request.nextUrl.origin}/pay/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${request.nextUrl.origin}/pay/success?session_id={CHECKOUT_SESSION_ID}&m=${merchant.id}`,
       cancel_url: `${request.nextUrl.origin}/pay/cancelled`,
     }
 
